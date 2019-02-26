@@ -179,9 +179,9 @@ class Network(object):
     """
     @layer
     def softmax(self, target, axis, name=None):
-        max_axis = tf.reduce_max(target, axis, keep_dims=True)
+        max_axis = tf.reduce_max(target, axis, keepdims=True)
         target_exp = tf.exp(target-max_axis)
-        normalize = tf.reduce_sum(target_exp, axis, keep_dims=True)
+        normalize = tf.reduce_sum(target_exp, axis, keepdims=True)
         softmax = tf.div(target_exp, normalize, name)
         return softmax
 
@@ -521,21 +521,25 @@ def pad(total_boxes, w, h):
     ex = total_boxes[:,2].copy().astype(np.int32)
     ey = total_boxes[:,3].copy().astype(np.int32)
 
-    tmp = np.where(ex>w)
-    edx[tmp] = np.expand_dims(-ex[tmp]+w+tmpw[tmp],1)
-    ex[tmp] = w
+    tmp, = np.where(ex>w)
+    if tmp.shape[0] > 0:
+        edx[tmp] = -ex[tmp]+w+tmpw[tmp]
+        ex[tmp] = w
 
-    tmp = np.where(ey>h)
-    edy[tmp] = np.expand_dims(-ey[tmp]+h+tmph[tmp],1)
-    ey[tmp] = h
+    tmp, = np.where(ey>h)
+    if tmp.shape[0] > 0:
+        edy[tmp] = -ey[tmp]+h+tmph[tmp]
+        ey[tmp] = h
 
-    tmp = np.where(x<1)
-    dx[tmp] = np.expand_dims(2-x[tmp],1)
-    x[tmp] = 1
+    tmp, = np.where(x<1)
+    if tmp.shape[0] > 0:
+        dx[tmp] = 2-x[tmp]
+        x[tmp] = 1
 
-    tmp = np.where(y<1)
-    dy[tmp] = np.expand_dims(2-y[tmp],1)
-    y[tmp] = 1
+    tmp, = np.where(y<1)
+    if tmp.shape[0] > 0:
+        dy[tmp] = 2-y[tmp]
+        y[tmp] = 1
 
     return dy, edy, dx, edx, y, ey, x, ex, tmpw, tmph
 

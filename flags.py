@@ -30,3 +30,4 @@ tf.app.flags.DEFINE_string('pretrained_model_checkpoint_path', '', '''Restore pr
 tf.app.flags.DEFINE_string('testset_name', '', '''test set name.''')
 tf.app.flags.DEFINE_string('model_name', '', '''test model name.''')
 tf.app.flags.DEFINE_string('savemat_name', '', '''save_mat_name''')
+tf.app.flags.DEFINE_string('f', '', 'kernel')
