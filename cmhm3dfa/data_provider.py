@@ -3,15 +3,13 @@ import numpy as np
 import menpo.io as mio
 import menpo
 import scipy
-import utils
 
 from pathlib import Path
 from scipy.io import loadmat
 from menpo.image import Image
 from menpo.shape import PointCloud
 from menpo.transform import Translation
-
-from flags import FLAGS
+from .flags import FLAGS
 
 def augment_img(img, augmentation):
     flip, rotate, rescale = np.array(augmentation).squeeze()

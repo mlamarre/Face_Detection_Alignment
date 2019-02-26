@@ -1,16 +1,16 @@
 import tensorflow as tf
 import numpy as np
 import scipy
-import data_provider
-import utils
 import pickle
-import models
+from .models import hourglass_arg_scope_tf, hourglass
+from .data_provider import ProtobuffProvider
+from .utils import get_weight
 
 from tensorflow.python.platform import tf_logging as logging
 
 slim = tf.contrib.slim
 
-from flags import FLAGS
+from .flags import FLAGS
 
 # general framework
 class DeepNetwork(object):
@@ -27,7 +27,7 @@ class DeepNetwork(object):
         tf.summary.image('images', images[:, :, :, :3], max_outputs=min(FLAGS.batch_size, 3))
 
     def _get_data(self):
-        provider = data_provider.ProtobuffProvider(
+        provider = ProtobuffProvider(
             filename=FLAGS.dataset_dir,
             batch_size=FLAGS.batch_size,
             rescale=FLAGS.rescale,
@@ -129,12 +129,12 @@ class DNFaceMultiView(DeepNetwork):
 
         net = inputs
 
-        # net = models.StackedHourglass(net, FLAGS.n_landmarks)
+        # net = StackedHourglass(net, FLAGS.n_landmarks)
         # states.append(net)
         # net = tf.stop_gradient(net)
         # net *= gt_mask[:,None,None,:]
         # net = tf.concat([inputs,net], 3)
-        # net = models.StackedHourglass(net, FLAGS.n_landmarks)
+        # net = StackedHourglass(net, FLAGS.n_landmarks)
         # states.append(net)
 
         batch_size = tf.shape(inputs)[0]
@@ -145,7 +145,7 @@ class DNFaceMultiView(DeepNetwork):
         states = []
 
         with slim.arg_scope([slim.batch_norm, slim.layers.dropout], is_training=is_training):
-            with slim.arg_scope(models.hourglass_arg_scope_tf()):
+            with slim.arg_scope(hourglass_arg_scope_tf()):
                 net = None
                 # stacked hourglass
                 for i in range(n_stacks):
@@ -155,7 +155,7 @@ class DNFaceMultiView(DeepNetwork):
                         else:
                             net = inputs
 
-                        net, _ = models.hourglass(
+                        net, _ = hourglass(
                             net,
                             regression_channels=n_channels,
                             classification_channels=0,
@@ -170,7 +170,7 @@ class DNFaceMultiView(DeepNetwork):
     def _build_losses(self, predictions, states, images, datas):
         gt_heatmap, gt_lms, mask_index, gt_mask = datas
 
-        weight_hm = utils.get_weight(gt_heatmap, tf.ones_like(gt_heatmap), ng_w=0.1, ps_w=1) * 500
+        weight_hm = get_weight(gt_heatmap, tf.ones_like(gt_heatmap), ng_w=0.1, ps_w=1) * 500
         weight_hm *= gt_mask[:,None,None,:]
 
         l2norm = slim.losses.mean_squared_error(states[0], gt_heatmap, weights=weight_hm)
