@@ -6,6 +6,10 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import os
+from .utils import menpo_image_to_uint8
+from menpo.shape import bounding_box, PointCloud
+
+this_file_dir = os.path.dirname(os.path.realpath(__file__))
 
 def layer(op):
     '''Decorator for composable network layers.'''
@@ -556,3 +560,74 @@ def rerec(bboxA):
 def imresample(img, sz):
     im_data = cv2.resize(img, (sz[1], sz[0]), interpolation=cv2.INTER_AREA)
     return im_data
+
+def detect_face_menpo_api(minsize, pnet, rnet, onet, threshold, factor, face_classification_threshold, img):
+    bounding_boxes, points = detect_face(img, minsize, pnet, rnet, onet, threshold, factor)
+    if bounding_boxes is None or bounding_boxes.shape[0] == 0:
+        return [], []
+    menpo_bbs = []
+    menpo_point_clouds = []
+    n_faces = bounding_boxes.shape[0]
+    points = np.reshape(points,(2,5,n_faces))
+    for i in range(n_faces):
+        if bounding_boxes[i,4] > face_classification_threshold:
+            pts = np.roll(points[:,:,i].T,shift=1,axis=1)
+            # bounding_box((tl[1], tl[0]), (br[1], br[0]))
+            menpo_bbs.append(bounding_box((bounding_boxes[i,1], bounding_boxes[i,0]), (bounding_boxes[i,3], bounding_boxes[i,2])))
+            menpo_point_clouds.append(PointCloud(pts))
+    return menpo_bbs, menpo_point_clouds
+
+class MTCNNFaceDetector(object):
+    def __init__(self,tf_sess):
+        self.minsize = 40 # minimum size of face
+        self.threshold = [ 0.3, 0.5, 0.6 ]  # three steps's threshold
+        self.factor = 0.709 # scale factor
+        self.face_classification_threshold = 0.9 # threshold on the face score output  
+        self.pnet, self.rnet, self.onet = create_detector(tf_sess, os.path.join(this_file_dir,'pretrained_mtcnn'))
+
+    def __call__(self, image, image_diagonal=None, group_prefix='mtcnn'):
+        r"""
+        Perform a detection using the MTCNN detector.
+        
+        Zhang K, Zhang Z, Li Z, Qiao Y. Joint face detection and alignment using multitask cascaded convolutional networks. IEEE Signal Processing Letters. 2016 Oct;23(10):1499-503.
+        Implementation & Training by Jiankang Deng, https://github.com/jiankangdeng/Face_Detection_Alignment
+
+        The detections will also be attached to the image as landmarks.
+
+        Parameters
+        ----------
+        image : `menpo.image.Image`
+            A Menpo image to detect. The bounding boxes of the detected objects
+            will be attached to this image.
+        image_diagonal : `int`, optional
+            The total size of the diagonal of the image that should be used for
+            detection. This is useful for scaling images up and down for
+            detection.
+        group_prefix : `str`, optional
+            The prefix string to be appended to each each landmark group that is
+            stored on the image. Each detection will be stored as group_prefix_#
+            where # is a count starting from 0.
+
+        Returns
+        ------
+        bounding_boxes : `list` of `menpo.shape.PointDirectedGraph`
+            The detected objects.
+        """
+        res = detect_face_menpo_api(self.minsize, self.pnet, self.rnet, self.onet, self.threshold, self.factor, self.face_classification_threshold,
+                                    menpo_image_to_uint8(image))
+        if res is None:
+            return None
+        
+        pc_boxes, pc_feats = res
+        assert(len(pc_boxes) == len(pc_feats))
+        padding_magnitude = len(str(len(pc_boxes)))
+        for i, box_feats in enumerate(zip(pc_boxes, pc_feats)):
+            key = '{prefix}_{num:0{mag}d}'.format(mag=padding_magnitude,
+                                                  prefix=group_prefix + '_box', num=i)
+            image.landmarks[key] = box_feats[0]
+            
+            key = '{prefix}_{num:0{mag}d}'.format(mag=padding_magnitude,
+                                                  prefix=group_prefix + '_features', num=i)
+            image.landmarks[key] = box_feats[1]
+        return pc_boxes
+        

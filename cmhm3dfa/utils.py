@@ -399,8 +399,8 @@ def import_image(img_path):
 
     return original_image
 
-def crop_image(img, center, scale, res, base=384):
-    h = base * scale
+def crop_image(img, center, scale, res, base=256., order=1):
+    h = scale
 
     t = Translation(
         [
@@ -408,21 +408,67 @@ def crop_image(img, center, scale, res, base=384):
             res[1] * (-center[1] / h + .5)
         ]).compose_after(Scale((res[0] / h, res[1] / h))).pseudoinverse()
 
-
     # Upper left point
-    ul = np.floor(t.apply([0,0]))
+    ul = np.floor(t.apply([0, 0]))
     # Bottom right point
     br = np.ceil(t.apply(res).astype(np.int))
 
     # crop and rescale
+    cimg, trans = img.warp_to_shape(
+        br - ul, Translation(-(br - ul) / 2 + (br + ul) / 2), return_transform=True)
 
-    cimg, trans = img.warp_to_shape(br-ul, Translation(-(br-ul)/2+(br+ul)/2) ,return_transform=True)
     c_scale = np.min(cimg.shape) / np.mean(res)
-    new_img = cimg.rescale(1 / c_scale).resize(res)
-    return new_img, trans, c_scale
+    new_img = cimg.rescale(1 / c_scale, order=order).resize(res, order=order)
+
+    trans = trans.compose_after(Scale([c_scale, c_scale]))
+
+    return new_img, trans
+
+def crop_image_bounding_box(img, bbox, res, base=256., order=1):
+
+    center = bbox.centre()
+    bmin, bmax = bbox.bounds()
+    scale = np.linalg.norm(bmax - bmin) / base
+
+    return crop_image(img, center, scale, res, base, order=order)
 
 def tf_heatmap_to_lms(heatmap):
     hs = tf.argmax(tf.reduce_max(heatmap, 2), 1)
     ws = tf.argmax(tf.reduce_max(heatmap, 1), 1)
     lms = tf.transpose(tf.to_float(tf.stack([hs, ws])), perm=[1, 2, 0])
     return lms
+
+# copied from menpodetect - seemed unnecessary to add a dependency
+# to menpodetect for this help function
+def menpo_image_to_uint8(image, channels_at_back=True):
+    r"""
+    Return the given image as a uint8 array. This is a copy of the image.
+
+    Parameters
+    ----------
+    image : `menpo.image.Image`
+        The image to convert. If already uint8, only the channels will be
+        rolled to the last axis.
+    channels_at_back : `bool`, optional
+        If ``True``, the image channels are placed onto the last axis (the back)
+        as is common in many imaging packages. This is contrary to the Menpo
+        default where channels are the first axis (at the front).
+
+    Returns
+    -------
+    uint8_image : `ndarray`
+        `uint8` Numpy array, channels as the back (last) axis if
+        ``channels_at_back == True``.
+    """
+    if channels_at_back:
+        uint8_im = image.pixels_with_channels_at_back(out_dtype=np.uint8)
+        # Handle the dead axis on greyscale images
+        if uint8_im.ndim == 3 and uint8_im.shape[-1] == 1:
+            uint8_im = uint8_im[..., 0]
+    else:
+        from menpo.image.base import denormalize_pixels_range
+        uint8_im = denormalize_pixels_range(image.pixels, np.uint8)
+        # Handle the dead axis on greyscale images
+        if uint8_im.ndim == 3 and uint8_im.shape[0] == 1:
+            uint8_im = uint8_im[0]
+    return uint8_im
