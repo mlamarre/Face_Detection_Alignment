@@ -3,3 +3,6 @@
 __pycache__/
 image/bonnie*
 image/Capture.PNG
+build/
+dist/
+cmhm3dfa.egg-info
