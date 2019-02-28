@@ -1,3 +1,5 @@
 *.pts
 .ipynb_checkpoints/
 __pycache__/
+image/bonnie*
+image/Capture.PNG

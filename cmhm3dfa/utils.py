@@ -420,3 +420,9 @@ def crop_image(img, center, scale, res, base=384):
     c_scale = np.min(cimg.shape) / np.mean(res)
     new_img = cimg.rescale(1 / c_scale).resize(res)
     return new_img, trans, c_scale
+
+def tf_heatmap_to_lms(heatmap):
+    hs = tf.argmax(tf.reduce_max(heatmap, 2), 1)
+    ws = tf.argmax(tf.reduce_max(heatmap, 1), 1)
+    lms = tf.transpose(tf.to_float(tf.stack([hs, ws])), perm=[1, 2, 0])
+    return lms
