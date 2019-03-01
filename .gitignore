@@ -6,3 +6,14 @@ image/Capture.PNG
 build/
 dist/
 cmhm3dfa.egg-info
+ckpt/
+.bash_history
+.cache/
+.conda/
+.keras/
+.python_history
+.ipython/
+.jupyter/
+.local/
+.theano/
+.nv/
